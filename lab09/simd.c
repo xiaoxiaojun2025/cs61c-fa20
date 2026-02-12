@@ -48,29 +48,78 @@ long long int sum_unrolled(int vals[NUM_ELEMS]) {
 long long int sum_simd(int vals[NUM_ELEMS]) {
 	clock_t start = clock();
 	__m128i _127 = _mm_set1_epi32(127);		// This is a vector with 127s in it... Why might you need this?
-	long long int result = 0;				   // This is where you should put your final result!
+	long long int result = 0;				// This is where you should put your final result!
 	/* DO NOT DO NOT DO NOT DO NOT WRITE ANYTHING ABOVE THIS LINE. */
-	
+	__m128i running_sum, curr;
+	int p[4];
 	for(unsigned int w = 0; w < OUTER_ITERATIONS; w++) {
 		/* YOUR CODE GOES HERE */
+		running_sum = _mm_setzero_si128();
+		for (unsigned int i = 0; i < NUM_ELEMS / 4 * 4; i += 4) {
+			curr = _mm_loadu_si128((__m128i *) (vals + i));
+			// 不要使用临时变量存储条件比较值和位与运算结果值
+			// 这会增加数据冒险，降低性能
+			running_sum = _mm_add_epi32(running_sum, _mm_and_si128(curr, _mm_cmpgt_epi32(curr, _127)));
+		}
+		_mm_storeu_si128((__m128i *) p, running_sum);
+		for (unsigned int j = 0; j < 4; j++) {
+			result += p[j];
+		}
 
 		/* You'll need a tail case. */
-
+		for (unsigned int i = NUM_ELEMS / 4 * 4; i < NUM_ELEMS; i++) {
+			if (vals[i] >= 128) {
+				result += vals[i];
+			}
+		}
 	}
+
 	clock_t end = clock();
 	printf("Time taken: %Lf s\n", (long double)(end - start) / CLOCKS_PER_SEC);
 	return result;
+
 }
 
 long long int sum_simd_unrolled(int vals[NUM_ELEMS]) {
 	clock_t start = clock();
 	__m128i _127 = _mm_set1_epi32(127);
 	long long int result = 0;
+
+	__m128i running_sum, curr0, curr1, curr2, curr3;
+	int p[4];
 	for(unsigned int w = 0; w < OUTER_ITERATIONS; w++) {
 		/* COPY AND PASTE YOUR sum_simd() HERE */
 		/* MODIFY IT BY UNROLLING IT */
+		running_sum = _mm_setzero_si128();
+		unsigned int i = 0;
+		for (; i < NUM_ELEMS / 16 * 16; i += 16) {
+			curr0 = _mm_loadu_si128((__m128i *) (vals + i));
+			curr1 = _mm_loadu_si128((__m128i *) (vals + i + 4));
+			curr2 = _mm_loadu_si128((__m128i *) (vals + i + 8));
+			curr3 = _mm_loadu_si128((__m128i *) (vals + i + 12));
+			// 不要使用临时变量存储条件比较值和位与运算结果值
+			// 这会增加数据冒险，降低性能
+			curr0 = _mm_add_epi32(_mm_and_si128(curr0, _mm_cmpgt_epi32(curr0, _127)), _mm_and_si128(curr1, _mm_cmpgt_epi32(curr1, _127)));
+			curr2 = _mm_add_epi32(_mm_and_si128(curr2, _mm_cmpgt_epi32(curr2, _127)), _mm_and_si128(curr3, _mm_cmpgt_epi32(curr3, _127)));
 
+			running_sum = _mm_add_epi32(running_sum, _mm_add_epi32(curr0, curr2));
+
+		}
 		/* You'll need 1 or maybe 2 tail cases here. */
+		for (; i < NUM_ELEMS / 4 * 4; i += 4) {
+			curr0 = _mm_loadu_si128((__m128i *) (vals + i));
+			running_sum = _mm_add_epi32(running_sum, _mm_and_si128(curr0, _mm_cmpgt_epi32(curr0, _127)));
+		}
+		for (; i < NUM_ELEMS; i++) {
+			if (vals[i] >= 128) {
+				result += vals[i];
+			}
+		}
+		_mm_storeu_si128((__m128i *) p, running_sum);
+		for (unsigned int i = 0; i < 4; i++) {
+			result += p[i];
+		}
+
 
 	}
 	clock_t end = clock();
